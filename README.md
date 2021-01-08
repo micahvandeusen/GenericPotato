@@ -1,8 +1,9 @@
-# Generic HTTP Potato
-### A modified version of SweetPotato by @_EthicalChaos_ to support generic HTTP.
+# GenericPotato
+### A modified version of SweetPotato by @_EthicalChaos_ to support generic HTTP/SMB.
+### Background and explanation to come soon.
 
 ```
-Generic HTTP Potato by @micahvandeusen
+GenericPotato by @micahvandeusen
   Modified from SweetPotato by @_EthicalChaos_
   -m, --method=VALUE         Auto,User,Thread (default Auto)
   -p, --prog=VALUE           Program to launch (default cmd.exe)

