@@ -81,7 +81,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LocalNegotiator.cs" />
     <Compile Include="Options.cs" />
     <Compile Include="Security\Privilege.cs" />
     <Compile Include="Program.cs" />

