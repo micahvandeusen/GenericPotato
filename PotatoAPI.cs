@@ -25,6 +25,7 @@ namespace GenericPotato {
         IntPtr systemImpersonationToken = IntPtr.Zero;
 
         readonly int port;
+        readonly string host;
 
         public enum Mode
         {
@@ -39,9 +40,10 @@ namespace GenericPotato {
         }
 
 
-        public PotatoAPI(ushort port, Mode mode) {
+        public PotatoAPI(ushort port, string host, Mode mode) {
 
             this.port = port;
+            this.host = host;
             this.mode = mode;
 
             switch (mode)
@@ -102,9 +104,9 @@ namespace GenericPotato {
         void HTTPListener()
         {
 
-            Console.WriteLine($"[+] Starting HTTP listener on port http://*:{port}");
+            Console.WriteLine($"[+] Starting HTTP listener on port http://{host}:{port}");
             HttpListener listener = new HttpListener();
-            listener.Prefixes.Add($"http://*:{port}/");
+            listener.Prefixes.Add($"http://{host}:{port}/");
             listener.Start();
             listener.AuthenticationSchemes = AuthenticationSchemes.IntegratedWindowsAuthentication;
             listener.UnsafeConnectionNtlmAuthentication = true;

