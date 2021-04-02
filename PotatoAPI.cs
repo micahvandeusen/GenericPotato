@@ -30,7 +30,7 @@ namespace GenericPotato {
         public enum Mode
         {
             HTTP,
-            SMB
+            NamedPipe
         }
 
         public IntPtr Token {
@@ -48,7 +48,7 @@ namespace GenericPotato {
 
             switch (mode)
             {
-                case Mode.SMB:
+                case Mode.NamedPipe:
                     listener = new Thread(NamedPipeListener);
                     listener.Start();
                     break;
